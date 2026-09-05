@@ -1923,7 +1923,14 @@ function renderTeacherQuestionView(showReveal){
   } else {
     noteBlocksEl.classList.add("hidden");
     noteBlocksEl.innerHTML = "";
+    noteEl.style.fontSize = "";
     if(q.note){ noteEl.textContent = q.note; noteEl.classList.remove("hidden"); } else noteEl.classList.add("hidden");
+    // 일반(비분할) 레이아웃에서만 #tq-note 글자를 카드 여유에 맞춰 키운다.
+    // 분할+이미지 문항(오른쪽 칸의 note)은 선택지·정답통계와 공간을 다투므로 건드리지 않는다.
+    if(q.note && !isSplit){
+      if(typeof requestAnimationFrame === "function") requestAnimationFrame(fitNormalNote);
+      else fitNormalNote();
+    }
   }
 
   // 교사용 이미지 컨테이너 — 문항마다 원본 크기가 달라도 항상 같은 박스(.tq-img-box)
@@ -2114,6 +2121,22 @@ function fitNoteBox(container){
   while(size > MIN && (container.scrollHeight > container.clientHeight + 1 || container.scrollWidth > container.clientWidth + 1)){
     size -= STEP;
     apply(size);
+  }
+}
+
+// 일반(비분할) 레이아웃의 공용 보기 박스(#tq-note)도 카드에 여유가 있으면 글자를 키운다.
+// 단, 같은 카드 안 아래쪽 선택지(①~⑤)가 화면 밖으로 밀리지 않도록 카드(#tq-card-normal)가
+// 스크롤을 만들기 직전 크기까지만(최대 32px). 분할 레이아웃 note는 fitNoteBox가 담당한다.
+function fitNormalNote(){
+  const noteEl = document.getElementById("tq-note");
+  const card = document.getElementById("tq-card-normal");
+  if(!noteEl || !card || noteEl.classList.contains("hidden")) return;
+  const MAX = 32, MIN = 15, STEP = 1;
+  let size = MAX;
+  noteEl.style.fontSize = size + "px";
+  while(size > MIN && (card.scrollHeight > card.clientHeight + 1 || card.scrollWidth > card.clientWidth + 1)){
+    size -= STEP;
+    noteEl.style.fontSize = size + "px";
   }
 }
 
