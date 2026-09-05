@@ -1914,6 +1914,11 @@ function renderTeacherQuestionView(showReveal){
       noteBlocksEl.classList.remove("tq-note-blocks-chem");
       noteBlocksEl.innerHTML = '<div class="tq-note-plain"></div>';
       noteBlocksEl.querySelector(".tq-note-plain").textContent = q.note;
+      // 왼쪽 참고자료 칸이 세로로 남으면 글자를 키워 빈 공간을 채운다(칸 밖으로는
+      // 안 넘치는 선까지만). 레이아웃이 잡힌 다음 프레임에 계산.
+      if(typeof requestAnimationFrame === "function"){
+        requestAnimationFrame(function(){ fitNoteBox(document.getElementById("tq-split-image")); });
+      } else fitNoteBox(document.getElementById("tq-split-image"));
     }
   } else {
     noteBlocksEl.classList.add("hidden");
@@ -2091,6 +2096,24 @@ function fitMetaTitle(titleEl, _retry){
   // 레이아웃이 안정된 다음 프레임에 한 번만 더 계산한다(무한 반복 방지).
   if(!_retry && typeof requestAnimationFrame === "function"){
     requestAnimationFrame(function(){ fitMetaTitle(titleEl, true); });
+  }
+}
+
+// 분할 레이아웃 왼쪽 참고자료 칸(.tq-split-image.note-mode)에 prose note(.tq-note-plain)를
+// 넣었을 때, 칸(고정 높이 = 화면 높이 - 여백)이 세로로 남으면 글자를 키워 공간을 채운다.
+// "보기/설명을 너무 작게 쓰지 말 것"이라는 요구사항 — 다만 칸 밖으로 넘치면(세로든
+// 가로든) 그 직전 크기까지만. fitAnswerBig()과 같은 "큰 값에서 시작해 넘치면 줄이기" 방식.
+function fitNoteBox(container){
+  if(!container) return;
+  const targets = container.querySelectorAll(".tq-note-plain");
+  if(!targets.length) return;
+  const MAX = 46, MIN = 15, STEP = 1;
+  let size = MAX;
+  const apply = s => targets.forEach(t=>{ t.style.fontSize = s + "px"; });
+  apply(size);
+  while(size > MIN && (container.scrollHeight > container.clientHeight + 1 || container.scrollWidth > container.clientWidth + 1)){
+    size -= STEP;
+    apply(size);
   }
 }
 
