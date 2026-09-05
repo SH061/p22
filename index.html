@@ -308,6 +308,13 @@
      블록 사이 간격도 더 넉넉하게(1.3배) 잡는다. */
   .tq-note-blocks.tq-note-blocks-chem{ gap:23px; }
   .tq-note-blocks-chem .tq-note-block{ font-size:58px; }
+  /* 긴 <보기>·설명 prose를 왼쪽 참고자료 칸에 넣을 때: 큰 블록으로 쪼개지 않고
+     읽기 좋은 크기의 단일 박스로. 칸을 넘치면 .tq-split-image.note-mode가 스크롤한다. */
+  .tq-note-plain{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:12px;
+    padding:18px 22px; font-size:23px; line-height:1.75; font-weight:600;
+    white-space:pre-wrap; word-break:keep-all;
+  }
   .tq-split-right{
     background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 26px;
     display:flex; flex-direction:column;
@@ -1081,7 +1088,10 @@ const SPLIT_TAG_SET = (function(){
     // 반응식 나열(참고자료 역할)이 있으면 tag 이름과 무관하게 분할 레이아웃으로 통일한다
     // — 활동마다 이 계열 문항의 tag 이름이 "깨알 개념 체크 문제"/"스스로 확인하기"처럼
     // 다를 수 있기 때문(문항 데이터는 그대로 두고 판정 로직만 내용 기반으로 일반화).
-    const hasReactionListNote = item => item.note && /\(가\)|\(나\)|\(다\)|\(라\)/.test(item.note);
+    // (가)(나)(다)(라) 항목 표시 + 반응식 화살표(→)가 함께 있는 note만 "반응식 나열"로 본다.
+    // 화살표가 없는 <보기>·설명 prose는 (가)(나)가 들어있어도 분할 레이아웃을 강제하지 않는다
+    // (긴 prose를 왼쪽 큰 블록으로 쪼개면 화면 밖으로 넘치는 문제가 있었다).
+    const hasReactionListNote = item => item.note && /\(가\)|\(나\)|\(다\)|\(라\)/.test(item.note) && /→|⟶|⟵|↔|⇌/.test(item.note);
     if(list.some(item => (item.image && item.note) || hasReactionListNote(item))) forced.add(tag);
   });
   return forced;
@@ -1890,14 +1900,21 @@ function renderTeacherQuestionView(showReveal){
   const noteEl = document.getElementById("tq-note");
   const noteBlocksEl = document.getElementById("tq-note-blocks");
   if(noteOnLeft){
-    // note를 왼쪽 참고자료 칸에 (가)(나)(다)(라) 등 항목/줄 단위로 나눠서 표시하고,
-    // 오른쪽에는 원본 note 텍스트를 중복 표시하지 않는다.
+    // 왼쪽 참고자료 칸 렌더링. note가 (가)(나) + 반응식 화살표(→)를 가진 "반응식 나열"이면
+    // 항목별 큰 블록(buildNoteBlocksHtml)으로 시원하게 보여주고, 그 외 긴 <보기>·설명
+    // prose는 큰 블록으로 쪼개면 화면 밖으로 넘치므로 읽기 좋은 크기의 단일 박스
+    // (.tq-note-plain)로 넣고 넘치면 칸 안에서 스크롤한다.
     noteEl.classList.add("hidden");
-    noteBlocksEl.innerHTML = buildNoteBlocksHtml(q.note);
     noteBlocksEl.classList.remove("hidden");
-    // (가)(나)(다)(라) 화학 반응식 나열(스스로 확인하기)은 다른 확인문제 note보다
-    // 더 크게/여유 있게 — 반응식 표기 여부로 판정(문항 데이터 수정 없이 판정만).
-    noteBlocksEl.classList.toggle("tq-note-blocks-chem", /\(가\)|\(나\)|\(다\)|\(라\)/.test(q.note || ""));
+    const isReactionList = /→|⟶|⟵|↔|⇌/.test(q.note || "") && /\(가\)|\(나\)|\(다\)|\(라\)/.test(q.note || "");
+    if(isReactionList){
+      noteBlocksEl.innerHTML = buildNoteBlocksHtml(q.note);
+      noteBlocksEl.classList.add("tq-note-blocks-chem");
+    } else {
+      noteBlocksEl.classList.remove("tq-note-blocks-chem");
+      noteBlocksEl.innerHTML = '<div class="tq-note-plain"></div>';
+      noteBlocksEl.querySelector(".tq-note-plain").textContent = q.note;
+    }
   } else {
     noteBlocksEl.classList.add("hidden");
     noteBlocksEl.innerHTML = "";
@@ -2028,6 +2045,7 @@ function resetMetaTitleStyle(titleEl){
   const row = titleEl.closest(".qmeta-left");
   titleEl.style.whiteSpace = "";
   titleEl.style.fontSize = "";
+  titleEl.style.textWrap = "";
   if(row) row.style.flexWrap = "";
 }
 
@@ -2052,6 +2070,9 @@ function fitMetaTitle(titleEl, _retry){
     // 때(아주 긴 단어 등)만 조금씩 더 줄인다.
     row.style.flexWrap = "wrap";
     titleEl.style.whiteSpace = "normal";
+    // 여러 줄로 내릴 때는 줄 길이를 고르게 배분해서 마지막 줄에 한 글자만 남는
+    // (문장 뜻이 어색해지는) 고아 줄바꿈을 막는다.
+    titleEl.style.textWrap = "balance";
     size = WRAP_FONT;
     titleEl.style.fontSize = size + "px";
     while(size > MIN_FONT_WRAP && row.scrollWidth > row.clientWidth + 1){
@@ -2064,6 +2085,7 @@ function fitMetaTitle(titleEl, _retry){
     // 버그의 안전장치. 여유 있으면 그대로 한 줄, 아슬아슬하면 자연히 줄바꿈된다.
     row.style.flexWrap = "wrap";
     titleEl.style.whiteSpace = "normal";
+    titleEl.style.textWrap = "pretty";
   }
   // 렌더 직후 그리드 트랙 폭이 아직 확정되지 않아 측정이 어긋날 수 있으므로,
   // 레이아웃이 안정된 다음 프레임에 한 번만 더 계산한다(무한 반복 방지).
